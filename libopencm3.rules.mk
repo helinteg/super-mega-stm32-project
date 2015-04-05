@@ -25,6 +25,8 @@ Q		:= @
 NULL		:= 2>/dev/null
 endif
 
+BUILD_DIR = build
+
 ###############################################################################
 # Executables
 
@@ -49,7 +51,7 @@ STYLECHECKFILES	:= $(shell find . -name '*.[ch]')
 
 LDSCRIPT	?= $(BINARY).ld
 
-OBJS		+= $(BINARY).o
+OBJS		+= $(BUILD_DIR)/$(BINARY).o
 
 
 ifeq ($(strip $(OPENCM3_DIR)),)
@@ -103,7 +105,7 @@ CPPFLAGS	+= -I$(INCLUDE_DIR) $(DEFS)
 LDFLAGS		+= --static -nostartfiles
 LDFLAGS		+= -L$(LIB_DIR)
 LDFLAGS		+= -T$(LDSCRIPT)
-LDFLAGS		+= -Wl,-Map=$(*).map
+LDFLAGS		+= -Wl,-Map=$(BUILD_DIR)/$(*).map
 LDFLAGS		+= -Wl,--gc-sections
 ifeq ($(V),99)
 LDFLAGS		+= -Wl,--print-gc-sections
@@ -124,55 +126,57 @@ LDLIBS		+= -l$(LIBNAME)
 .SECONDEXPANSION:
 .SECONDARY:
 
-all: elf
+all: mkbd elf
 
-elf: $(BINARY).elf
-bin: $(BINARY).bin
-hex: $(BINARY).hex
-srec: $(BINARY).srec
-list: $(BINARY).list
+elf: $(BUILD_DIR)/$(BINARY).elf
+bin: $(BUILD_DIR)/$(BINARY).bin
+hex: $(BUILD_DIR)/$(BINARY).hex
+srec: $(BUILD_DIR)/$(BINARY).srec
+list: $(BUILD_DIR)/$(BINARY).list
 
 images: $(BINARY).images
 flash: $(BINARY).flash
 
-%.images: %.bin %.hex %.srec %.list %.map
+%.images: $(BUILD_DIR)/%.bin $(BUILD_DIR)/%.hex $(BUILD_DIR)/%.srec $(BUILD_DIR)%.list $(BUILD_DIR)/%.map
 	@#printf "*** $* images generated ***\n"
 
-%.bin: %.elf
+$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf
 	@#printf "  OBJCOPY $(*).bin\n"
-	$(Q)$(OBJCOPY) -Obinary $(*).elf $(*).bin
+	$(Q)$(OBJCOPY) -Obinary $(BUILD_DIR)/$(*).elf $(BUILD_DIR)/$(*).bin
 
-%.hex: %.elf
+$(BUILD_DIR)/%.hex: $(BUILD_DIR)/%.elf
 	@#printf "  OBJCOPY $(*).hex\n"
-	$(Q)$(OBJCOPY) -Oihex $(*).elf $(*).hex
+	$(Q)$(OBJCOPY) -Oihex $(BUILD_DIR)/$(*).elf $(BUILD_DIR)/$(*).hex
 
-%.srec: %.elf
+$(BUILD_DIR)/%.srec: $(BUILD_DIR)/%.elf
 	@#printf "  OBJCOPY $(*).srec\n"
-	$(Q)$(OBJCOPY) -Osrec $(*).elf $(*).srec
+	$(Q)$(OBJCOPY) -Osrec $(BUILD_DIR)/$(*).elf $(BUILD_DIR)/$(*).srec
 
-%.list: %.elf
+$(BUILD_DIR)/%.list: $(BUILD_DIR)/%.elf
 	@#printf "  OBJDUMP $(*).list\n"
-	$(Q)$(OBJDUMP) -S $(*).elf > $(*).list
+	$(Q)$(OBJDUMP) -S $(BUILD_DIR)/$(*).elf > $(BUILD_DIR)/$(*).list
 
-%.elf %.map: $(OBJS) $(LDSCRIPT) $(LIB_DIR)/lib$(LIBNAME).a
+$(BUILD_DIR)/%.elf $(BUILD_DIR)/%.map: $(OBJS) $(LDSCRIPT) $(LIB_DIR)/lib$(LIBNAME).a
 	@#printf "  LD      $(*).elf\n"
-	$(Q)$(LD) $(LDFLAGS) $(ARCH_FLAGS) $(OBJS) $(LDLIBS) -o $(*).elf
+	$(Q)$(LD) $(LDFLAGS) $(ARCH_FLAGS) $(OBJS) $(LDLIBS) -o $(BUILD_DIR)/$(*).elf
 
-%.o: %.c
+$(BUILD_DIR)/%.o: %.c
 	@#printf "  CC      $(*).c\n"
-	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(*).o -c $(*).c
+	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(BUILD_DIR)/$(*).o -c $(*).c
 
-%.o: %.cxx
+$(BUILD_DIR)/%.o: %.cxx
 	@#printf "  CXX     $(*).cxx\n"
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(*).o -c $(*).cxx
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(BUILD_DIR)/$(*).o -c $(*).cxx
 
-%.o: %.cpp
+$(BUILD_DIR)/%.o: %.cpp
 	@#printf "  CXX     $(*).cpp\n"
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(*).o -c $(*).cpp
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -o $(BUILD_DIR)/$(*).o -c $(*).cpp
+
+mkbd:
+	@mkdir -p $(BUILD_DIR)
 
 clean:
-	@#printf "  CLEAN\n"
-	$(Q)$(RM) *.o *.d *.elf *.bin *.hex *.srec *.list *.map
+	@rm -rf $(BUILD_DIR)/
 
 stylecheck: $(STYLECHECKFILES:=.stylecheck)
 styleclean: $(STYLECHECKFILES:=.styleclean)
@@ -235,6 +239,6 @@ else
 		   $(*).elf
 endif
 
-.PHONY: images clean stylecheck styleclean elf bin hex srec list
+.PHONY: images clean stylecheck styleclean elf bin hex srec list mkbd
 
 -include $(OBJS:.o=.d)
